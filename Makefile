@@ -6,8 +6,8 @@ drm_tool_app : $(objects)
 	$(cc) -o drm_tool_app $(objects) $(drmconfig)
 
 drm_tools.o : drm_tools.c
-	$(cc) -o drm_tools.c $(drmconfig)
+	$(cc) -c drm_tools.c $(drmconfig)
 
 .PHONY : clean
 clean :
-	rm drm_tool_app $(objects)
+	-rm drm_tool_app $(objects)
