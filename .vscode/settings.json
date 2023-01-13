@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "pthread.h": "c",
+        "videodev2.h": "c",
+        "xf86drmmode.h": "c"
+    }
+}
