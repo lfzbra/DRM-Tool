@@ -10,6 +10,7 @@
 #include <poll.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include <time.h>
 
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -44,6 +45,7 @@ do {                                      \
 	    v4l2_printf(ERR_LEVEL, "\x1B[31m"fmt"\e[0m", ##args)
 #define v4l2_warn(fmt, args...)   \
 	    v4l2_printf(ERR_LEVEL, "\x1B[32m"fmt"\e[0m", ##args)
+
 struct drm_buffer {
 	void *fb_base;
 
@@ -74,6 +76,14 @@ struct drm_device {
 	__u32 nr_buffer;
 	__u32 front_buf;
 };
+
+
+struct drmtool_device
+{
+	struct drm_device *drm_dev;
+	struct drm_buffer *drm_buff;
+};
+
 
 static void dump_drm_clients(const int dev_num)
 {
@@ -171,7 +181,7 @@ static int drm_create_fb(int fd, int index, struct drm_buffer *buf)
 	struct drm_mode_destroy_dumb dreq;
 	struct drm_mode_map_dumb mreq;
 	int ret;
-
+	printf("drm_create_fb\n");
 	memset(&creq, 0, sizeof(creq));
 	creq.width = buf->width;
 	creq.height = buf->height;
@@ -209,8 +219,9 @@ static int drm_create_fb(int fd, int index, struct drm_buffer *buf)
 		v4l2_err("Cannot mmap dumb buffer[%d]\n", index);
 		goto remove_fb;
 	}
-	memset(buf->fb_base, 0x55, buf->size);
-
+	memset(buf->fb_base, 0, buf->size);
+	// printf("sleep 5s\n");
+	// sleep(5);
 	return 0;
 
 remove_fb:
@@ -265,7 +276,7 @@ static int modeset_setup_dev(struct drm_device *drm,
 {
 	struct drm_buffer *buf = drm->buffers;
 	int i, ret;
-
+	printf("modeset_setup_dev\n");
 	ret = modeset_find_crtc(drm, res, conn);
 	if (ret < 0)
 		return ret;
@@ -276,7 +287,9 @@ static int modeset_setup_dev(struct drm_device *drm,
 		buf[i].width  = conn->modes[0].hdisplay;
 		buf[i].height = conn->modes[0].vdisplay;
 		ret = drm_create_fb(drm->drm_fd, i, &buf[i]);
+		printf("drm_create_fb returned %d\n", ret);
 		if (ret < 0) {
+			
 			while(i)
 				drm_destroy_fb(drm->drm_fd, i - 1, &buf[i-1]);
 			return ret;
@@ -331,6 +344,7 @@ static int drm_device_prepare(struct drm_device *drm)
 		/* find a valid connector */
 		drm->conn_id = conn->connector_id;
 		ret = modeset_setup_dev(drm, res, conn);
+		printf("modeset_setup_dev returned %d\n", ret);
 		if (ret < 0) {
 			v4l2_err("mode setup device environment fail\n");
 			drmDropMaster(drm_fd);
@@ -344,14 +358,15 @@ static int drm_device_prepare(struct drm_device *drm)
 	return 0;
 }
 
-static int drm_init(struct drm_device *drm)
+static int drm_init(struct drmtool_device *dev)
 {
     
     int fd, i, ret;
     uint64_t has_dumb;
     drmModeRes *res;
 	drmModeConnector *conn;
-    struct drm_buffer *buf;
+	struct drm_device *drm;
+	struct drm_buffer *buf;
 
     drm = malloc(sizeof(*drm));
 		if (drm == NULL) {
@@ -359,6 +374,8 @@ static int drm_init(struct drm_device *drm)
 			return -ENOMEM;
 		}
 	memset(drm, 0, sizeof(*drm));
+
+	dev->drm_dev = drm;
 
     drm->drm_fd = open("/dev/dri/card1", O_RDWR | O_CLOEXEC | O_NONBLOCK);
 	if (drm->drm_fd < 0) {
@@ -387,19 +404,184 @@ static int drm_init(struct drm_device *drm)
 			v4l2_err("buffer[%d] set CRTC fail\n", buf->buf_id);
 			return ret;
 		}
+	printf("show 111>>> \n");
+		for(i=0; i< 2; i++) {
+			memset(buf->fb_base, 0, buf->size);
+			sleep(1);
+			memset(buf->fb_base, 0xff, buf->size);
+			sleep(1);
+			memset(buf->fb_base, 0, buf->size);
+			sleep(1);
+			memset(buf->fb_base, 0xff, buf->size);
+			sleep(1);
+			memset(buf->fb_base, 0, buf->size);
+			sleep(1);
+		}
+		drmDropMaster(drm->drm_fd);
+		drm_destroy_fb(drm->drm_fd, 0, &drm->buffers[0]);
+		drm_destroy_fb(drm->drm_fd, 0, &drm->buffers[1]);
+		close(drm->drm_fd);
+		free(drm);
+	
+	return 0;
 
+}
+
+static int drm_malloc(struct drmtool_device *dev)
+{
+	struct drm_device *drm;
+
+	drm = malloc(sizeof(*drm));
+		if (drm == NULL) {
+			printf("alloc DRM device fail\n");
+			return -ENOMEM;
+		}
+	memset(drm, 0, sizeof(*drm));
+
+	dev->drm_dev = drm;
+
+	return 0;
+}
+
+static int drm_open(struct drmtool_device *dev)
+{
+	struct drm_device *drm = dev->drm_dev;
+	uint64_t has_dumb;
+
+	drm->drm_fd = open("/dev/dri/card1", O_RDWR | O_CLOEXEC | O_NONBLOCK);
+	if (drm->drm_fd < 0) {
+		printf("Open /dev/dri/card1 fail\n");
+		return -1;
+	}
+
+	if (drmGetCap(drm->drm_fd, DRM_CAP_DUMB_BUFFER, &has_dumb) < 0 ||
+	    !has_dumb) {
+		printf("drm device /dev/dri/card1 does not support dumb buffers\n");
+		close(drm->drm_fd);
+		return -1;
+	}
+    printf("Open /dev/dri/card1 success\n");
+
+	return 0;
+
+}
+
+static int drm_prepare(struct drmtool_device *dev)
+{
+	int ret;
+	struct drm_device *drm = dev->drm_dev;
+
+	ret = drm_device_prepare(drm);
+	if (ret < 0) {
+		drmDropMaster(drm->drm_fd);
+		return ret;
+	}
+
+	return 0;
+
+}
+
+static int drm_start(struct drmtool_device *dev)
+{
+	int ret,i;
+	struct drm_device *drm = dev->drm_dev;
+	struct drm_buffer *buf;
+		
+	buf = &drm->buffers[drm->front_buf];
+	ret = drmModeSetCrtc(drm->drm_fd, drm->crtc_id, buf->buf_id,
+							 0, 0, &drm->conn_id, 1, &drm->mode);
+	if (ret < 0) {
+		v4l2_err("buffer[%d] set CRTC fail\n", buf->buf_id);
+		return ret;
+	}
+	printf("show 222>>> \n");
+		for(i=0; i< 1; i++) {
+			memset(buf->fb_base, 0, buf->size);
+			sleep(1);
+			memset(buf->fb_base, 0x99, buf->size);
+			sleep(1);
+			memset(buf->fb_base, 0, buf->size);
+			sleep(1);
+			memset(buf->fb_base, 0x99, buf->size);
+			sleep(1);
+			memset(buf->fb_base, 0, buf->size);
+			sleep(1);
+		}
+
+	return 0;
+}
+
+static int drm_show_blink(struct drmtool_device *dev)
+{
+	int i;
+	struct drm_device *drm = dev->drm_dev;
+	struct drm_buffer *buff = &drm->buffers[drm->front_buf];
+	printf("drm_show_blink >>>\n");
+	for (i = 0; i < 2; i++) {
+		memset(buff->fb_base, 0, buff->size);
+		sleep(1);
+		memset(buff->fb_base, 0x55, buff->size);
+		sleep(1);
+		memset(buff->fb_base, 0, buff->size);
+		sleep(1);
+		memset(buff->fb_base, 0x55, buff->size);
+		sleep(1);
+		memset(buff->fb_base, 0, buff->size);
+		sleep(1);
+	}
+	return 0;
 }
 
 int main(int argc, char *argv[])
 {   
-	struct drm_device *drm;
+	int i,ret;
+	struct drmtool_device dev;
+	
+	
     input_command(argc, argv);
 
-	if(!drm_init(drm))
-	{
-		close(drm->drm_fd);
-	}else
-		close(drm->drm_fd);
+	ret = drm_malloc(&dev);
+	if (ret < 0) {
+		printf("No enough memory\n");
+		return -ENOMEM;
+	}
+
+	ret = drm_open(&dev);
+	if (ret < 0)
+		goto free;
+	ret = drm_prepare(&dev);
+	if (ret < 0)
+		goto close;
+
+	ret = drm_start(&dev);
+	if (ret < 0)
+		goto cleanup;
+
+	// drm_init(&dev);
+	drm_show_blink(&dev);
+	//printf("show >>> \n");
+	// memset(dev.drm_buff->fb_base, 0, dev.drm_buff->size);
+	// 		sleep(1);
+	// 		memset(dev.drm_buff->fb_base, 0xff, dev.drm_buff->size);
+	// 		sleep(1);
+	// 		memset(dev.drm_buff->fb_base, 0, dev.drm_buff->size);
+	// 		sleep(1);
+	// 		memset(dev.drm_buff->fb_base, 0xff, dev.drm_buff->size);
+	// 		sleep(1);
+	// 		memset(dev.drm_buff->fb_base, 0, dev.drm_buff->size);
+	// 		sleep(1);
+			
+
+cleanup:
+	drmDropMaster(dev.drm_dev->drm_fd);
+	drm_destroy_fb(dev.drm_dev->drm_fd, 0, &dev.drm_dev->buffers[0]);
+	drm_destroy_fb(dev.drm_dev->drm_fd, 0, &dev.drm_dev->buffers[1]);
+
+close:
+	close(dev.drm_dev->drm_fd);
+
+free:
+	free(dev.drm_dev);
 
     printf("drm_tools is end!\n");
     return 0;
