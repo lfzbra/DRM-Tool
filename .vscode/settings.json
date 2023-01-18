@@ -2,6 +2,14 @@
     "files.associations": {
         "pthread.h": "c",
         "videodev2.h": "c",
-        "xf86drmmode.h": "c"
+        "xf86drmmode.h": "c",
+        "drm_query.h": "c",
+        "ioctl.h": "c",
+        "drm_tools.h": "c",
+        "drm_mode.h": "c",
+        "inttypes.h": "c",
+        "drm_fourcc.h": "c",
+        "type_traits": "c",
+        "stdio.h": "c"
     }
 }
