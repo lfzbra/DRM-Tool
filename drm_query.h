@@ -3,8 +3,7 @@
 
 #include "drm_tools.h"
 // #include <drm_mode.h>
-#include <inttypes.h>
-#include <drm_fourcc.h>
+
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 

@@ -27,6 +27,11 @@
 #include <linux/videodev2.h>
 
 
+
+#include <inttypes.h>
+#include <drm_fourcc.h>
+
+
 #define INFO_LEVEL				4
 #define DBG_LEVEL				5
 #define ERR_LEVEL				6

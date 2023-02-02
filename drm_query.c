@@ -783,18 +783,6 @@ int mod_open(const char *device, const char *module)
                 return -ENODEV;
             }
     }
-
-    // dev->resources = get_resources(&dev);
-    // if(!dev->resources){
-    //     drmClose(dev->fd);
-    //     return 1;
-    // }
-
-    // dump_encoders(&dev);
-    // dump_connectors(&dev);
-    // dump_crtcs(&dev);
-    // dump_framebuffers(&dev);
-    // dump_planes(&dev);
     return dev.fd;
 }
 
