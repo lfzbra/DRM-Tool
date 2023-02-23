@@ -1,46 +1,6 @@
 #include "drm_query.h"
 #include <assert.h>
 
-struct crtc {
-	drmModeCrtc *crtc;
-	drmModeObjectProperties *props;
-	drmModePropertyRes **props_info;
-	drmModeModeInfo *mode;
-};
-
-struct encoder {
-	drmModeEncoder *encoder;
-};
-
-struct connector {
-	drmModeConnector *connector;
-	drmModeObjectProperties *props;
-	drmModePropertyRes **props_info;
-	char *name;
-};
-
-struct fb {
-	drmModeFB *fb;
-};
-
-struct plane {
-	drmModePlane *plane;
-	drmModeObjectProperties *props;
-	drmModePropertyRes **props_info;
-};
-
-struct resources {
-	drmModeRes *res;
-	drmModePlaneRes *plane_res;
-
-	struct crtc *crtcs;
-	struct encoder *encoders;
-	struct connector *connectors;
-	struct fb *fbs;
-	struct plane *planes;
-};
-
-
 #define bit_name_fn(res)					\
 const char * res##_str(int type) {				\
 	unsigned int i;						\

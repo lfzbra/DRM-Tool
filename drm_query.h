@@ -8,20 +8,6 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
 
-struct device {
-	int fd;
-
-	struct resources *resources;
-
-	struct {
-		unsigned int width;
-		unsigned int height;
-
-		unsigned int fb_id;
-		struct bo *bo;
-		struct bo *cursor_bo;
-	} mode;
-};
 
 struct drm_format_modifier_blob {
 #define FORMAT_BLOB_CURRENT 1

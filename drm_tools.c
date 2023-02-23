@@ -1,66 +1,13 @@
 #include "drm_tools.h"
+#include "drm_set.h"
 #include "drm_query.h"
-// #include "drm_set.h"
+#include "drm_mem.h"
 
 #define CAM_MASK				0x0001
 #define DEFAULT_LOG            6
 
-static uint32_t g_cap_fmt;
-
-char *filename;
-// char *setcon_str;
-// char *setplans_str;
-uint32_t con_id;
-uint32_t cr_id;
-uint32_t pl_id; 
-
-struct drm_set_mode {
-	__u32 c_mode_width;
-	__u32 c_mode_heigth;
-	__u32 p_mode_width;
-	__u32 p_mode_heigth;
-} drm_set_mode;
-
-struct drm_buffer {
-	void *fb_base;
-
-	__u32 width;
-	__u32 height;
-	__u32 stride;
-	__u32 size;
-
-	__u32 handle;
-	__u32 buf_id;
-};
-
-struct drm_device {
-	int drm_fd;
-
-	__s32 crtc_id;
-	__s32 card_id;
-	uint32_t conn_id;
-
-	__u32 bits_per_pixel;
-	__u32 bytes_per_pixel;
-
-	drmModeModeInfo mode;
-	drmModeCrtc *saved_crtc;
-
-	/* double buffering */
-	struct drm_buffer buffers[2];
-	__u32 nr_buffer;
-	__u32 front_buf;
-};
-
-
-struct drmtool_device
-{
-	struct drm_device *drm_dev;
-	struct drm_buffer *drm_buff;
-	struct device drm_qdev;
-};
-
-
+uint32_t mem_address = 0;
+int mem_data = 0;
 struct drm_flags
 {
 	uint8_t query;
@@ -74,6 +21,10 @@ struct drm_flags
 	uint8_t setcon;
 	uint8_t setplans;
 	uint8_t setion_f;
+	uint8_t display_num;
+	uint8_t mem_flag;
+	uint8_t than_argc;
+	uint8_t mode_flag;
 } drm_flags = {0};
 
 static void dump_drm_clients(const int dev_num)
@@ -109,7 +60,7 @@ static void printf_help(void)
 	printf("\t\t-s\tSet connector and CRTC\n");
 	printf("\t\t  \t<connector_id> <CRTC_id> <mode_width> <mode_height>\n");
 	printf("\t\t-P\tSet planes\n");
-	printf("\t\t \t<planes_id> <plane_width> <plane_height>\n");
+	printf("\t\t  \t<planes_id> <plane_width> <plane_height>\n");
 	printf("\n");
 
 	printf("--------------------------------------------------------\n");
@@ -117,12 +68,38 @@ static void printf_help(void)
 	printf("\n");
 	printf("\t\t<device>\tuse the given device\n");
 	printf("\n");
+	printf("--------------------------------------------------------\n");
+	printf("  -mm\tDump registers:\n");
+	printf("\n");
+	printf("\t\t-r\tRead register address,for example,56190000 1\n");
+	printf("\t\t  \t<address> <count>\n");
+	printf("\t\t-w\tWrite Register address,for example,56190000 1f1f\n");
+	printf("\t\t  \t<address> <data>");
+	printf("\n");
 	printf("========================================================\n");
 	printf("\n");
+
+}
+
+static void printf_help_mode(void)
+{
+	printf("========================================================\n");
+    printf("Please input mode:\n");
+	printf("\n");
+	printf("  -Q\tQuery options:\n");
+	printf("\n");
+	printf("  -S\tSettings options:\n");
+	printf("\n");
+	printf("  -D\tDisplay options:\n");
+	printf("\n");
+	printf("  -mm\tDump registers:\n");
+	printf("\n");
+	printf("========================================================\n");
 }
 
 static void printf_help_query(void)
 {
+	printf("========================================================\n");
     printf("list Query options:\n");
 	printf("\n");
 	printf("\t-cc\tlist CRTCs\n");
@@ -131,6 +108,70 @@ static void printf_help_query(void)
 	printf("\t-f\tlist framebuffers\n");
 	printf("\t-p\tlist planes\n");
 	printf("\n");
+	printf("========================================================\n");
+}
+
+static void printf_help_s(void)
+{
+	printf("========================================================\n");
+	printf("Please confirm the input parameters!\n");
+	printf("\t-s\tSet connector and CRTC\n");
+	printf("\t  \t<connector_id> <CRTC_id> <mode_width> <mode_height>\n");
+	printf("\n");
+	printf("========================================================\n");
+}
+
+static void printf_help_P(void)
+{
+	printf("========================================================\n");
+	printf("Please confirm the input parameters!\n");
+	printf("\t-P\tSet planes\n");
+	printf("\t  \t<planes_id> <plane_width> <plane_height>\n");
+	printf("\n");
+	printf("========================================================\n");
+}
+
+static void printf_help_D(void)
+{
+	printf("========================================================\n");
+	printf("Please confirm the input parameters!\n");
+	printf("  -D\tDisplay options:\n");
+	printf("\t\t<device>\tuse the given device\n");
+	printf("\n");
+	printf("========================================================\n");
+}
+
+static void printf_help_dump(void)
+{
+	printf("========================================================\n");
+	printf("Dump registers:\n");
+	printf("\n");
+	printf("\t-r\tRead register address,for example,56190000\n");
+	printf("\t  \t<address> <count>\n");
+	printf("\t-w\tWrite Register address,for example,56190000 1f1f\n");
+	printf("\t  \t<address> <data>");
+	printf("\n");
+	printf("========================================================\n");
+}
+
+static void printf_help_r(void)
+{
+	printf("========================================================\n");
+	printf("Please confirm the input parameters!\n");
+	printf("\t-r\tRead register address,for example,56190000 1\n");
+	printf("\t  \t<address> <count>\n");
+	printf("\n");
+	printf("========================================================\n");
+}
+
+static void printf_help_w(void)
+{
+	printf("========================================================\n");
+	printf("Please confirm the input parameters!\n");
+	printf("\t-w\tWrite Register address,for example,56190000 1f1f\n");
+	printf("\t  \t<address> <data>");
+	printf("\n");
+	printf("========================================================\n");
 }
 
 static int input_command(int argc, char *argv[])
@@ -157,10 +198,11 @@ static int input_command(int argc, char *argv[])
         } else if(strcmp(argv[i], "-Q") == 0)
         {
             drm_flags.query = 1;
+			drm_flags.mode_flag = 1;
             
         } else if(strcmp(argv[i], "-c") == 0)
         {
-            drm_flags.query_C = 1;
+            drm_flags.query_c = 1;
         } else if(strcmp(argv[i], "-p") == 0)
         {
             drm_flags.query_p = 1;
@@ -172,13 +214,25 @@ static int input_command(int argc, char *argv[])
             drm_flags.query_f = 1;
         } else if(strcmp(argv[i], "-cc") == 0)
         {
-            drm_flags.query_c = 1;
+            drm_flags.query_C = 1;
         } else if(strcmp(argv[i], "-D") == 0)
         {
+			drm_flags.mode_flag = 2;
+			if(i>=(argc-1))
+			{
+				printf_help_D();
+				return -1;
+			}
             drm_flags.display = 1;
-			return 0;
+			filename = argv[++i];
+			// return 0;
         } else if(strcmp(argv[i], "-s") == 0)
         {
+			if(i>=(argc-4))
+			{
+				printf_help_s();
+				return -1;
+			}
             drm_flags.setcon = 1;
 			//setcon_str = argv[++i];
 			con_id = atoi(argv[++i]);
@@ -188,6 +242,11 @@ static int input_command(int argc, char *argv[])
 			//return 0;
         } else if(strcmp(argv[i], "-P") == 0)
         {
+			if(i>=(argc-3))
+			{
+				printf_help_P();
+				return -1;
+			}
             drm_flags.setplans = 1;
 			pl_id = atoi(argv[++i]);
 			drm_set_mode.p_mode_width = atoi(argv[++i]);
@@ -198,8 +257,61 @@ static int input_command(int argc, char *argv[])
         } 
 		else if(strcmp(argv[i], "-S") == 0)
         {
+			drm_flags.mode_flag = 3;
             drm_flags.setion_f = 1;
 			//return 0;
+        } 
+		else if(strcmp(argv[i], "-ra") == 0)
+        {
+            drm_flags.display_num = 1;
+			//return 0;
+        } 
+		else if(strcmp(argv[i], "-co") == 0)
+        {
+            drm_flags.display_num = 2;
+			//return 0;
+        } 
+		else if(strcmp(argv[i], "-mm") == 0)
+        {
+			drm_flags.mode_flag = 4;
+			if(i>=(argc-1))
+			{
+				printf_help_dump();
+				return -1;
+			}
+			if(strcmp(argv[++i], "-r") == 0)
+			{
+				if(i>=(argc-2))
+				{
+					printf_help_r();
+					return -1;
+				}
+				sscanf(argv[++i], "%x", &mem_address);
+				sscanf(argv[++i], "%x", &mem_data);
+				mem_reg(mem_address, 1, 0, mem_data);
+			}
+			else if (strcmp(argv[i], "-w") == 0)
+			{
+				if(i>=(argc-2))
+				{
+					printf_help_w();
+					return -1;
+				}
+				sscanf(argv[++i], "%x", &mem_address);
+				sscanf(argv[++i], "%x", &mem_data);
+				mem_reg(mem_address, 1, 1,mem_data);
+			}
+			else 
+				printf_help_dump();
+			drm_flags.mem_flag = 1;
+			return 0;
+        } 
+		else if(strcmp(argv[i], "-M") == 0)
+        {
+		   
+           mem_reg(mem_address, 2, 1, 1);
+		   drm_flags.mem_flag = 1;
+			return 0;
         } 
 		else
         {
@@ -229,7 +341,7 @@ static int adjust(__u32 fourcc)
 			bpp = 16;
 			break;
 		default:
-			bpp = 32;
+			bpp = 16;
 	}
 	return bpp;
 }
@@ -390,7 +502,7 @@ static int modeset_set_setup_dev(struct drm_device *drm,
 
 	memcpy(&drm->mode, &conn->modes[0], sizeof(drm->mode));
 	/* Double buffering */
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < 1; i++) {
 		buf[i].width  = drm_set_mode.c_mode_width;
 		buf[i].height = drm_set_mode.c_mode_heigth;
 		ret = drm_create_fb(drm->drm_fd, i, &buf[i]);
@@ -701,11 +813,6 @@ static int drm_start(struct drmtool_device *dev)
 			memset(buf->fb_base, 0x99, buf->size);
 			sleep(1);
 			memset(buf->fb_base, 0, buf->size);
-			sleep(1);
-			memset(buf->fb_base, 0x99, buf->size);
-			sleep(1);
-			memset(buf->fb_base, 0, buf->size);
-			sleep(1);
 		}
 
 	return 0;
@@ -741,11 +848,6 @@ static int drm_set_start(struct drmtool_device *dev)
 			memset(buf->fb_base, 0x99, buf->size);
 			sleep(1);
 			memset(buf->fb_base, 0, buf->size);
-			sleep(1);
-			memset(buf->fb_base, 0x99, buf->size);
-			sleep(1);
-			memset(buf->fb_base, 0, buf->size);
-			sleep(1);
 		}
 
 	return 0;
@@ -754,10 +856,10 @@ static int drm_set_start(struct drmtool_device *dev)
 static int drm_show_blink(struct drmtool_device *dev)
 {
 	int i;
+	
 	struct drm_device *drm = dev->drm_dev;
 	struct drm_buffer *buff = &drm->buffers[drm->front_buf];
-	drm_dbg("drm_show_blink >>>\n");
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < 1; i++) {
 		memset(buff->fb_base, 0, buff->size);
 		sleep(1);
 		memset(buff->fb_base, 0x55, buff->size);
@@ -765,11 +867,41 @@ static int drm_show_blink(struct drmtool_device *dev)
 		memset(buff->fb_base, 0, buff->size);
 		sleep(1);
 		memset(buff->fb_base, 0x55, buff->size);
-		sleep(1);
-		memset(buff->fb_base, 0, buff->size);
-		sleep(1);
+	}
+	drm_dbg(" twe memset \n");
+	printf("buff->size = %d, buff->width * buff->height / 2= %d buff->h: %d\n",buff->size, buff->width * buff->height / 2, buff->height);
+	for(i = 0; i < buff->width * buff->height; i++)
+	{
+		// buff->fb_base[i] = argb8888_to_rgb565(0xff0000);
+		if(i < 691200)
+		{
+			buff->fb_base[i] = argb8888_to_rgb565(0xff0000);
+		}
+		if(691200 <= i && i< 1382400)
+		{
+			buff->fb_base[i] = argb8888_to_rgb565(0xff00);
+		}
+		if(i>= 1382400)
+			buff->fb_base[i] = argb8888_to_rgb565(0xff);
 	}
 	return 0;
+}
+
+void drm_show_all(struct drmtool_device *dev, uint8_t num)
+{
+	switch(num){
+		case 0: 
+			drm_show_blink(dev);
+			break;
+		case 1:
+			show_rail(dev);
+			break;
+		case 2:
+			show_column(dev);
+			break;
+		default:
+			break;
+	}
 }
 
 int main(int argc, char *argv[])
@@ -783,10 +915,11 @@ int main(int argc, char *argv[])
 	struct plane_arg *plane_args = NULL;
 	
 	log_level = DEFAULT_LOG;
+	// mem_reg(1);
 	memset(&dev,0,sizeof(dev));
 	if(input_command(argc, argv))
 		return 0;
-	if((!drm_flags.display) && (!drm_flags.setion_f))	//操作 DRM 框架节点
+	if(drm_flags.mode_flag == 1)	//操作 DRM 框架节点, DUMP 框架资源
 	{
 		printf("drm_flags.display is 0\n");
 		dev.drm_qdev.fd= mod_open(device, module); //打开 DRM 节点
@@ -812,9 +945,11 @@ int main(int argc, char *argv[])
 		}
 
 		free_resources(dev.drm_qdev.resources);
-	} else if (drm_flags.display){	// 操作设备节点
-	printf("drm_flags.display is 1\n");
-		filename = argv[2];
+	} 
+	else if (drm_flags.mode_flag == 2) // 操作设备节点，显示图像
+	{	
+		printf("drm_flags.mode_flag is 3\n");
+		
 		ret = drm_malloc(&dev);
 		if (ret < 0) {
 			printf("No enough memory\n");
@@ -824,7 +959,7 @@ int main(int argc, char *argv[])
 		ret = drm_open(&dev);
 		if (ret < 0)
 			goto free;
-		ret = drm_set_prepare(&dev);
+		ret = drm_prepare(&dev);
 		if (ret < 0)
 			goto close;
 
@@ -832,27 +967,9 @@ int main(int argc, char *argv[])
 		if (ret < 0)
 			goto cleanup;
 
-	// #define dump_resource(dev, res) if (res) dump_##res(dev)
-
-	// 	dump_resource(&dev.drm_dev, encoders);
-	// 	dump_resource(&dev.drm_dev, connectors);
-	// 	dump_resource(&dev.drm_dev, crtcs);
-	// 	dump_resource(&dev.drm_dev, planes);
-	// 	dump_resource(&dev.drm_dev, framebuffers);
-		
-		// drm_init(&dev);
-		drm_show_blink(&dev);
-		//printf("show >>> \n");
-		// memset(dev.drm_buff->fb_base, 0, dev.drm_buff->size);
-		// 		sleep(1);
-		// 		memset(dev.drm_buff->fb_base, 0xff, dev.drm_buff->size);
-		// 		sleep(1);
-		// 		memset(dev.drm_buff->fb_base, 0, dev.drm_buff->size);
-		// 		sleep(1);
-		// 		memset(dev.drm_buff->fb_base, 0xff, dev.drm_buff->size);
-		// 		sleep(1);
-		// 		memset(dev.drm_buff->fb_base, 0, dev.drm_buff->size);
-		// 		sleep(1);
+		printf("display_num = %d \n",drm_flags.display_num);
+		drm_show_all(&dev, drm_flags.display_num);
+		getchar();
 		printf("drm tool app successfully! \n");		
 
 	cleanup:
@@ -865,8 +982,10 @@ int main(int argc, char *argv[])
 
 	free:
 		free(dev.drm_dev);
-		} else if(drm_flags.setion_f){
-			printf("drm_flags.setion_f is 1\n");
+	} 
+	else if(drm_flags.mode_flag == 3)  // 通过配置 connector、CRTCS 和 planes 显示图像
+	{
+		printf("drm_flags.mode_flag is 3\n");
 		ret = drm_malloc(&dev);
 		if (ret < 0) {
 			printf("No enough memory\n");
@@ -884,7 +1003,9 @@ int main(int argc, char *argv[])
 		if (ret < 0)
 			goto cleanup1;
 
-		drm_show_blink(&dev);
+		drm_show_all(&dev, drm_flags.display_num);
+
+		getchar();
 		printf("drm tool app successfully! \n");		
 
 	cleanup1:
@@ -897,11 +1018,16 @@ int main(int argc, char *argv[])
 
 	free1:
 		free(dev.drm_dev);
-		}
+	}
+	else if (drm_flags.mode_flag == 4)
+	{
+		;
+	}
+	else
+	{
+		printf_help_mode();
+	}
     printf("drm_tools is end!\n");
     return 0;
 }
-
-
-
 
