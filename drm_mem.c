@@ -44,7 +44,7 @@ int mem_reg(uint32_t reg, uint8_t flag, uint8_t rw, int data)
             mem = (int *)(mmap_base + low_add);
             *mem = data;
             printf("Write --> reg: 0x%x, val: 0x%x\n",mem , data);
-        }
+        } 
         else
         {
             for(i = 0; i< data; i++)

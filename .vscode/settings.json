@@ -10,6 +10,11 @@
         "inttypes.h": "c",
         "drm_fourcc.h": "c",
         "type_traits": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "drm_set.h": "c",
+        "string.h": "c",
+        "drm_mem.h": "c",
+        "unistd.h": "c",
+        "limits": "c"
     }
 }

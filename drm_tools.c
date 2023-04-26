@@ -2,10 +2,12 @@
 #include "drm_set.h"
 #include "drm_query.h"
 #include "drm_mem.h"
+#include <pthread.h>
 
 #define CAM_MASK				0x0001
 #define DEFAULT_LOG            6
 
+int tid_fd;
 uint32_t mem_address = 0;
 int mem_data = 0;
 struct drm_flags
@@ -61,8 +63,9 @@ static void printf_help(void)
 	printf("\t\t  \t<connector_id> <CRTC_id> <mode_width> <mode_height>\n");
 	printf("\t\t-P\tSet planes\n");
 	printf("\t\t  \t<planes_id> <plane_width> <plane_height>\n");
+	printf("\t\t-ra\tDisplay ra image\n");
+	printf("\t\t-co\tDisplay co image\n");
 	printf("\n");
-
 	printf("--------------------------------------------------------\n");
 	printf("  -D\tDisplay options:\n");
 	printf("\n");
@@ -79,6 +82,21 @@ static void printf_help(void)
 	printf("========================================================\n");
 	printf("\n");
 
+}
+
+static void printf_help_S(void)
+{
+	printf("========================================================\n");
+	printf("  -S\tSettings options:\n");
+	printf("\n");
+	printf("\t\t-s\tSet connector and CRTC\n");
+	printf("\t\t  \t<connector_id> <CRTC_id> <mode_width> <mode_height>\n");
+	printf("\t\t-P\tSet planes\n");
+	printf("\t\t  \t<planes_id> <plane_width> <plane_height>\n");
+	printf("\t\t-ra\tDisplay ra image\n");
+	printf("\t\t-co\tDisplay co image\n");
+	printf("\n");
+	printf("========================================================\n");
 }
 
 static void printf_help_mode(void)
@@ -365,7 +383,7 @@ static int drm_create_fb(int fd, int index, struct drm_buffer *buf)
 	struct drm_mode_destroy_dumb dreq;
 	struct drm_mode_map_dumb mreq;
 	int ret;
-	printf("drm_create_fb\n");
+	// printf("drm_create_fb\n");
 	memset(&creq, 0, sizeof(creq));
 	creq.width = buf->width;
 	creq.height = buf->height;
@@ -432,12 +450,12 @@ static int modeset_find_crtc(struct drm_device *drm,
 			drm_err("can't retrieve encoders[%d]\n", i);
 			continue;
 		}
-		drm_dbg("encoder->encoder_id[%d]\n", encoder->encoder_id);
+		//drm_dbg("encoder->encoder_id[%d]\n", encoder->encoder_id);
 
 		for (j = 0; j < res->count_crtcs; j++) {
 			if (encoder->possible_crtcs & (1 << j)) {
 				crtc_id = res->crtcs[j];
-				drm_dbg("crtc_id[%d]\n", crtc_id);
+				// drm_dbg("crtc_id[%d]\n", crtc_id);
 				if (crtc_id > 0) {
 					drm->crtc_id = crtc_id;
 					drmModeFreeEncoder(encoder);
@@ -463,7 +481,7 @@ static int modeset_setup_dev(struct drm_device *drm,
 {
 	struct drm_buffer *buf = drm->buffers;
 	int i, ret;
-	printf("modeset_setup_dev\n");
+	// printf("modeset_setup_dev\n");
 	ret = modeset_find_crtc(drm, res, conn);// 找到 CRTC id 
 	if (ret < 0)
 		return ret;
@@ -474,7 +492,7 @@ static int modeset_setup_dev(struct drm_device *drm,
 		buf[i].width  = conn->modes[0].hdisplay;
 		buf[i].height = conn->modes[0].vdisplay;
 		ret = drm_create_fb(drm->drm_fd, i, &buf[i]);
-		printf("drm_create_fb returned %d\n", ret);
+		// printf("drm_create_fb returned %d\n", ret);
 		if (ret < 0) {
 			
 			while(i)
@@ -495,7 +513,7 @@ static int modeset_set_setup_dev(struct drm_device *drm,
 {
 	struct drm_buffer *buf = drm->buffers;
 	int i, ret;
-	printf("modeset_setup_dev\n");
+	// printf("modeset_setup_dev\n");
 	ret = modeset_find_crtc(drm, res, conn);// 找到 CRTC id 
 	if (ret < 0)
 		return ret;
@@ -506,7 +524,7 @@ static int modeset_set_setup_dev(struct drm_device *drm,
 		buf[i].width  = drm_set_mode.c_mode_width;
 		buf[i].height = drm_set_mode.c_mode_heigth;
 		ret = drm_create_fb(drm->drm_fd, i, &buf[i]);
-		printf("drm_create_fb returned %d\n", ret);
+		// printf("drm_create_fb returned %d\n", ret);
 		if (ret < 0) {
 			
 			while(i)
@@ -529,11 +547,11 @@ static int drm_device_prepare(struct drm_device *drm)
 	int drm_fd = drm->drm_fd;
 	int ret, i;
 
-	ret = drmSetMaster(drm_fd);
-	if (ret < 0) {
-		dump_drm_clients(drm->card_id);
-		return ret;
-	}
+	// ret = drmSetMaster(drm_fd);
+	// if (ret < 0) {
+	// 	dump_drm_clients(drm->card_id);
+	// 	return ret;
+	// }
 
 	res = drmModeGetResources(drm_fd);
 	if (res == NULL) {
@@ -562,7 +580,7 @@ static int drm_device_prepare(struct drm_device *drm)
 		/* find a valid connector */
 		drm->conn_id = conn->connector_id;
 		ret = modeset_setup_dev(drm, res, conn);
-		printf("modeset_setup_dev returned %d\n", ret);
+		// printf("modeset_setup_dev returned %d\n", ret);
 		if (ret < 0) {
 			drm_err("mode setup device environment fail\n");
 			drmDropMaster(drm_fd);
@@ -616,7 +634,7 @@ static int drm_set_device_prepare(struct drm_device *drm)
 		/* find a valid connector */
 		drm->conn_id = conn->connector_id;
 		ret = modeset_set_setup_dev(drm, res, conn);
-		printf("modeset_setup_dev returned %d\n", ret);
+		// printf("modeset_setup_dev returned %d\n", ret);
 		if (ret < 0) {
 			drm_err("mode setup device environment fail\n");
 			drmDropMaster(drm_fd);
@@ -719,6 +737,8 @@ static int drm_open(struct drmtool_device *dev)
 {
 	struct drm_device *drm = dev->drm_dev;
 	uint64_t has_dumb;
+	int ret,i;
+	char test_buff[50]={0};
 
 	drm->drm_fd = open(filename, O_RDWR | O_CLOEXEC | O_NONBLOCK);
 	// drm->drm_fd = drmOpen("imx-drm", NULL);
@@ -735,6 +755,15 @@ static int drm_open(struct drmtool_device *dev)
 	}
     printf("Open %s success\n",filename);
 
+	// printf("start read------------\n");
+	// ret = read(drm->drm_fd,test_buff,sizeof(test_buff));
+	// if(ret < 0)
+	// 	printf("ret is 0x%x ,read failed\n",ret);
+
+	// for(i=0; i< sizeof(test_buff); i++)
+	// {
+	// 	printf("test_buf[%d] is 0x%x\n",i , test_buff[i]);
+	// }
 	return 0;
 
 }
@@ -743,7 +772,7 @@ static int drm_set_open(struct drmtool_device *dev)
 {
 	struct drm_device *drm = dev->drm_dev;
 	uint64_t has_dumb;
-	printf("drm_set_open\n");
+	//printf("drm_set_open\n");
 	//drm->drm_fd = open(filename, O_RDWR | O_CLOEXEC | O_NONBLOCK);
 	 drm->drm_fd = drmOpen("imx-drm", NULL);
 	if (drm->drm_fd < 0) {
@@ -751,12 +780,12 @@ static int drm_set_open(struct drmtool_device *dev)
 		return -1;
 	}
 
-	if (drmGetCap(drm->drm_fd, DRM_CAP_DUMB_BUFFER, &has_dumb) < 0 ||
-	    !has_dumb) {
-		printf("drm device imx-drm does not support dumb buffers\n");
-		close(drm->drm_fd);
-		return -1;
-	}
+	// if (drmGetCap(drm->drm_fd, DRM_CAP_DUMB_BUFFER, &has_dumb) < 0 ||
+	//     !has_dumb) {
+	// 	printf("drm device imx-drm does not support dumb buffers\n");
+	// 	close(drm->drm_fd);
+	// 	return -1;
+	// }
     printf("Open imx-drm success\n");
 
 	return 0;
@@ -806,15 +835,15 @@ static int drm_start(struct drmtool_device *dev)
 		drm_err("buffer[%d] set CRTC fail\n", buf->buf_id);
 		return ret;
 	}
-	printf("show 222>>> \n");
-		for(i=0; i< 1; i++) {
-			memset(buf->fb_base, 0, buf->size);
-			sleep(1);
-			memset(buf->fb_base, 0x99, buf->size);
-			sleep(1);
-			memset(buf->fb_base, 0, buf->size);
-		}
-
+	// printf("show 222>>> \n");
+	// 	for(i=0; i< 1; i++) {
+	// 		memset(buf->fb_base, 0, buf->size);
+	// 		sleep(1);
+	// 		memset(buf->fb_base, 0x99, buf->size);
+	// 		sleep(1);
+	// 		memset(buf->fb_base, 0, buf->size);
+	// 	}
+	memset(buf->fb_base, 0, buf->size);
 	return 0;
 }
 
@@ -841,15 +870,15 @@ static int drm_set_start(struct drmtool_device *dev)
 			printf("set plane is failed!\n");
 		printf("(buf->width - w)/2 = %d ,(buf->height - w)/2 =%d \n",(buf->width - w)/2,(buf->height - h)/2);
 	}
-	printf("show 222>>> \n");
-		for(i=0; i< 1; i++) {
-			memset(buf->fb_base, 0, buf->size);
-			sleep(1);
-			memset(buf->fb_base, 0x99, buf->size);
-			sleep(1);
-			memset(buf->fb_base, 0, buf->size);
-		}
-
+	// printf("show 222>>> \n");
+	// 	for(i=0; i< 1; i++) {
+	// 		memset(buf->fb_base, 0, buf->size);
+	// 		sleep(1);
+	// 		memset(buf->fb_base, 0x99, buf->size);
+	// 		sleep(1);
+	// 		memset(buf->fb_base, 0, buf->size);
+	// 	}
+	memset(buf->fb_base, 0, buf->size);
 	return 0;
 }
 
@@ -904,6 +933,24 @@ void drm_show_all(struct drmtool_device *dev, uint8_t num)
 	}
 }
 
+static void *drm_buff(void *arg)
+{
+	printf("drm_buff\n");
+	int i,ret;
+	char test_buff2[30] ={0};
+	printf("start read------------\n");
+	ret = read(tid_fd, test_buff2, sizeof(test_buff2));
+	if(ret < 0)
+		printf("read failed\n");
+
+	for(i=0; i< sizeof(test_buff2); i++)
+	{
+		printf("test_buff2[%d] is 0x%x\n",i , test_buff2[i]);
+	}
+
+	return (void *)0;
+}
+
 int main(int argc, char *argv[])
 {   
 	int i,ret;
@@ -913,6 +960,9 @@ int main(int argc, char *argv[])
 	char *module = NULL ;
 	struct pipe_arg *pipe_args = NULL;
 	struct plane_arg *plane_args = NULL;
+	char test_buf[30]={0};
+
+	pthread_t tid;
 	
 	log_level = DEFAULT_LOG;
 	// mem_reg(1);
@@ -921,7 +971,7 @@ int main(int argc, char *argv[])
 		return 0;
 	if(drm_flags.mode_flag == 1)	//操作 DRM 框架节点, DUMP 框架资源
 	{
-		printf("drm_flags.display is 0\n");
+		//printf("drm_flags.display is 0\n");
 		dev.drm_qdev.fd= mod_open(device, module); //打开 DRM 节点
 		dev.drm_qdev.resources = get_resources(&dev.drm_qdev); //获取节点资源
 		if(!dev.drm_qdev.resources){
@@ -948,7 +998,7 @@ int main(int argc, char *argv[])
 	} 
 	else if (drm_flags.mode_flag == 2) // 操作设备节点，显示图像
 	{	
-		printf("drm_flags.mode_flag is 3\n");
+		//printf("drm_flags.mode_flag is 2\n");
 		
 		ret = drm_malloc(&dev);
 		if (ret < 0) {
@@ -967,8 +1017,18 @@ int main(int argc, char *argv[])
 		if (ret < 0)
 			goto cleanup;
 
-		printf("display_num = %d \n",drm_flags.display_num);
+		// printf("display_num = %d \n",drm_flags.display_num);
 		drm_show_all(&dev, drm_flags.display_num);
+
+			printf("start read------------\n");
+			ret = read(dev.drm_dev->drm_fd,test_buf,sizeof(test_buf));
+			if(ret < 0)
+				printf("read failed\n");
+
+			for(i=0; i< sizeof(test_buf); i++)
+			{
+				printf("test_buf[%d] is 0x%x\n",i , test_buf[i]);
+			}
 		getchar();
 		printf("drm tool app successfully! \n");		
 
@@ -985,39 +1045,53 @@ int main(int argc, char *argv[])
 	} 
 	else if(drm_flags.mode_flag == 3)  // 通过配置 connector、CRTCS 和 planes 显示图像
 	{
-		printf("drm_flags.mode_flag is 3\n");
-		ret = drm_malloc(&dev);
-		if (ret < 0) {
-			printf("No enough memory\n");
-			return -ENOMEM;
-		}
+		//printf("drm_flags.mode_flag is 3\n");
+		if(drm_flags.setcon == 1)
+		{
+			ret = drm_malloc(&dev);
+			if (ret < 0) {
+				printf("No enough memory\n");
+				return -ENOMEM;
+			}
 
-		ret = drm_set_open(&dev);
-		if (ret < 0)
-			goto free1;
-		ret = drm_set_prepare(&dev);
-		if (ret < 0)
-			goto close1;
+			ret = drm_set_open(&dev);
+			if (ret < 0)
+				goto free1;
 
-		ret = drm_set_start(&dev);
-		if (ret < 0)
-			goto cleanup1;
+			tid_fd = dev.drm_dev->drm_fd;
+			ret = pthread_create(&tid, NULL, drm_buff, NULL);
+			if(ret)
+			{
+				printf("pthread_create failed\n");
+				exit(1);
+			}
 
-		drm_show_all(&dev, drm_flags.display_num);
+			ret = drm_set_prepare(&dev);
+			if (ret < 0)
+				goto close1;
 
-		getchar();
-		printf("drm tool app successfully! \n");		
+			ret = drm_set_start(&dev);
+			if (ret < 0)
+				goto cleanup1;
 
+			drm_show_all(&dev, drm_flags.display_num);
+			
+
+			getchar();
+			printf("drm tool app successfully! \n");		
+		
 	cleanup1:
 		drmDropMaster(dev.drm_dev->drm_fd);
 		drm_destroy_fb(dev.drm_dev->drm_fd, 0, &dev.drm_dev->buffers[0]);
 		drm_destroy_fb(dev.drm_dev->drm_fd, 0, &dev.drm_dev->buffers[1]);
-
+	
 	close1:
 		close(dev.drm_dev->drm_fd);
 
 	free1:
 		free(dev.drm_dev);
+		}
+		else printf_help_S();
 	}
 	else if (drm_flags.mode_flag == 4)
 	{

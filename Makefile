@@ -3,10 +3,10 @@ cc = aarch64-linux-gnu-gcc
 drmconfig = `pkg-config --cflags libdrm` `pkg-config --libs libdrm`
 
 drm_tool_app : $(objects)
-	$(cc) -o drm_tool_app $(objects) $(drmconfig)
+	$(cc) -o drm_tool_app $(objects) $(drmconfig) -lpthread
 
 drm_tools.o : drm_tools.c drm_tools.h 
-	$(cc) -c drm_tools.c $(drmconfig)
+	$(cc) -c drm_tools.c $(drmconfig) -lpthread
 
 drm_query.o : drm_query.c drm_query.h
 	$(cc) -c drm_query.c $(drmconfig)

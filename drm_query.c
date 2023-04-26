@@ -713,12 +713,12 @@ int mod_open(const char *device, const char *module)
 {
     int fd,i;
     struct device dev;
-    printf("mod_open\n");
+   // printf("mod_open\n");
 
     memset(&dev,0,sizeof(dev));
 
     if(module){
-        printf("module is 1\n");
+        //printf("module is 1\n");
         dev.fd = drmOpen(module, device);
         if(dev.fd < 0){
             fprintf(stderr, "failed to open device '%s': %s\n",
@@ -726,9 +726,9 @@ int mod_open(const char *device, const char *module)
 			return -errno;
             } 
     }else {
-        printf("module isn't 1\n");
+       // printf("module isn't 1\n");
         for(i = 0; i < ARRAY_SIZE(modules); i++){
-            printf(" trying to open device '%s'....", modules[i]);
+           printf(" trying to open device '%s'....", modules[i]);
 
             dev.fd = drmOpen(modules[i], device);
             if(dev.fd < 0){
